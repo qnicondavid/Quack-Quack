@@ -420,8 +420,134 @@ static void cpu_step(cpu_t *cpu, int debug) {
        Lab 4: byte loads/stores + I/O reads/writes
        Lab 5: polish + optional stats
     */
+	
+	switch(in.op) {
+		case OP_IRMOVW: {
+			// R[ra] = imm16
+			
+			check_reg(in.ra);	// validate register index 0..3
+			
+			uint16_t imm16 = u16_from_le(in.b2, in.b3);	// read 16-bit immediate (little-endian)
+			cpu->r[in.ra] = imm16;
+			
+			cpu->pc = cpu->pc + 4;	// advance to next instruction
+			break;
+		}
+		
+		case OP_RRMOVW: {
+			// R[rb] = R[ra]  (register-to-register move)
+			
+			uint8_t ra = in.ra;
+			uint8_t rb = in.b2;
+			check_reg(ra);
+			check_reg(rb);
+			
+			cpu->r[rb] = cpu->r[ra];
+			
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_IRMOVB: {
+			// R[ra] = imm8  (8-bit immediate)
+			
+			check_reg(in.ra);
+			
+			uint8_t imm8 = in.b3;	// imm8 is stored in b3
+			
+			cpu->r[in.ra] = imm8;
+			
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_ADDW: {
+			// R[rb] = R[rb] + R[ra]
+			
+			uint8_t ra = in.ra;
+			uint8_t rb = in.b2;
+			check_reg(ra);
+			check_reg(rb);
+			
+			cpu->r[rb] = cpu->r[rb] + cpu->r[ra];
+			
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_SUBW: {
+			// R[rb] = R[rb] - R[ra]
+			
+			uint8_t ra = in.ra;
+			uint8_t rb = in.b2;
+			check_reg(ra);
+			check_reg(rb);
+			
+			cpu->r[rb] = cpu->r[rb] - cpu->r[ra];
+			
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_CMPW: {
+			// Compare R[ra] and R[rb], set zero flag (ZF) if equal
+			
+			uint8_t ra = in.ra;
+			uint8_t rb = in.b2;
+			check_reg(ra);
+			check_reg(rb);
+			
+			if(cpu->r[ra] == cpu->r[rb])
+				cpu->zf = 1;
+		    else
+				cpu->zf = 0;
+			
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_JMP: {
+			// Unconditional jump to target address
+			
+			uint16_t target = u16_from_le(in.b2, in.b3);
+			
+			cpu->pc = target;
+			break;
+		}
+		
+		case OP_JE: {
+			// Jump if ZF == 1 (ZF is set)
+			
+			uint16_t target = u16_from_le(in.b2, in.b3);
+			
+			if(cpu->zf == 1)
+				cpu->pc = target;
+			else
+				cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_JNE: {
+			// Jump if ZF == 0 (ZF not set)
+			
+			uint16_t target = u16_from_le(in.b2, in.b3);
+			
+			if(cpu->zf == 0)
+				cpu->pc = target;
+			else
+				cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_HALT: {
+			// HALT stops the CPU
+			
+			cpu->halted = 1;
+			break;
+		}
+	}
 
-    die("cpu_step not implemented yet. Start with docs/LAB2.md");
+    //die("cpu_step not implemented yet. Start with docs/LAB2.md");
 }
 
 static void cpu_run(cpu_t *cpu, int debug) {
