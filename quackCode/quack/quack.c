@@ -545,6 +545,51 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			cpu->halted = 1;
 			break;
 		}
+		
+		case OP_PUSHW: {
+			// Push R[ra] onto the stack
+			
+			uint8_t ra = in.ra;
+			check_reg(ra);
+			
+			cpu->sp = cpu->sp - 2;				// decrement SP by 2 (stack grows downward)
+			mem_write16(cpu->sp, cpu->r[ra]);	// write 16-bit value to memory at SP
+			
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_POPW: {
+			// Pop from the stack into R[ra]
+			
+			uint8_t ra = in.ra;
+			check_reg(ra);
+			
+			cpu->r[ra] = mem_read16(cpu->sp);	// read 16-bit value from memory at SP
+			cpu->sp = cpu->sp + 2;				// increment SP
+			
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_CALL: {
+			// CALL: push return address and jump to target
+			
+			uint16_t target = u16_from_le(in.b2, in.b3);
+			
+			cpu->sp = cpu->sp - 2;				// decrement SP
+			mem_write16(cpu->sp, cpu->pc + 4);	// store return address (next instruction) on stack
+			cpu->pc = target;					// jump to target			
+			break;
+		}
+		
+		case OP_RET: {
+			// RET: pop return address from stack and jump there
+			
+			cpu->pc = mem_read16(cpu->sp);		// load return address
+			cpu->sp = cpu->sp + 2;				// increment SP
+			break;
+		}
 	}
 
     //die("cpu_step not implemented yet. Start with docs/LAB2.md");
