@@ -328,13 +328,58 @@ static void io_tick(void) {
 
 /* TODO (Lab 4): implement memory-mapped input reads */
 static uint8_t io_read8(uint16_t addr) {
-    (void)addr;
+    switch(addr) {
+		case IO_STATUS:
+			// Return 1 if a key is available, otherwise 0
+			return key_available;
+		case IO_KEY:
+			// Return the last pressed key and consume it
+            // After reading, no key is available
+			key_available = 0;
+			return last_key;
+		case IO_TICK:
+		    // Return the low 8 bits of the tick counter
+            // (tick counter increments once per CPU step)
+			return tick_counter & 0xFF;
+		default:
+			die("Invalid I/O read.");
+	}
     return 0;
 }
-
+ 
 /* TODO (Lab 4): implement memory-mapped output writes */
 static void io_write8(uint16_t addr, uint8_t v) {
-    (void)addr; (void)v;
+    switch(addr) {
+		case IO_PUTCHAR: {
+			// Print one character to the terminal
+		    putchar(v);
+            fflush(stdout);		// ensure it appears immediately
+            break;
+		}
+		case IO_CLEAR: {
+			// Clear the terminal screen
+			printf("\033[2J\033[H");
+			break;
+		}
+		default:
+			die("Invalid I/O write.");	
+	}
+}
+
+static uint8_t read8(uint16_t addr) {
+    if (addr >= IO_START && addr <= IO_END) {
+        return io_read8(addr);
+    } else {
+        return mem_read8(addr);
+    }
+}
+
+static void write8(uint16_t addr, uint8_t val) {
+    if (addr >= IO_START && addr <= IO_END) {
+        io_write8(addr, val);
+    } else {
+        mem_write8(addr, val);
+    }
 }
 
 /* =========================
@@ -553,7 +598,7 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			check_reg(ra);
 			
 			cpu->sp = cpu->sp - 2;				// decrement SP by 2 (stack grows downward)
-			mem_write16(cpu->sp, cpu->r[ra]);	// write 16-bit value to memory at SP
+			mem_write16(cpu->sp, cpu->r[ra]);		// write 16-bit value to memory at SP
 			
 			cpu->pc = cpu->pc + 4;
 			break;
@@ -565,7 +610,7 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			uint8_t ra = in.ra;
 			check_reg(ra);
 			
-			cpu->r[ra] = mem_read16(cpu->sp);	// read 16-bit value from memory at SP
+			cpu->r[ra] = mem_read16(cpu->sp);		// read 16-bit value from memory at SP
 			cpu->sp = cpu->sp + 2;				// increment SP
 			
 			cpu->pc = cpu->pc + 4;
@@ -578,7 +623,7 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			uint16_t target = u16_from_le(in.b2, in.b3);
 			
 			cpu->sp = cpu->sp - 2;				// decrement SP
-			mem_write16(cpu->sp, cpu->pc + 4);	// store return address (next instruction) on stack
+			mem_write16(cpu->sp, cpu->pc + 4);		// store return address (next instruction) on stack
 			cpu->pc = target;					// jump to target			
 			break;
 		}
@@ -586,8 +631,98 @@ static void cpu_step(cpu_t *cpu, int debug) {
 		case OP_RET: {
 			// RET: pop return address from stack and jump there
 			
-			cpu->pc = mem_read16(cpu->sp);		// load return address
+			cpu->pc = mem_read16(cpu->sp);			// load return address
 			cpu->sp = cpu->sp + 2;				// increment SP
+			break;
+		}
+		
+		case OP_MRMOVB: {
+			// Load one byte from memory into register R[ra]
+			// Address is a 16-bit immediate (b2,b3)
+			
+			uint8_t ra = in.ra;
+			check_reg(ra);
+			
+			uint16_t addr = u16_from_le(in.b2, in.b3);	// compute 16-bit address
+			cpu->r[ra] = read8(addr);					// read 1 byte (RAM or I/O)
+			
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_RMMOVB: {
+			// Store the LOW 8 bits of R[ra] into memory
+			// Address is a 16-bit immediate (b2,b3)
+			
+			uint8_t ra = in.ra;
+			check_reg(ra);
+			
+			uint16_t addr = u16_from_le(in.b2, in.b3);	// compute 16-bit address
+			write8(addr, (uint8_t)cpu->r[ra]);			// write only lowest byte
+			
+			cpu->pc = cpu->pc + 4;			
+			break;
+		}
+		
+		case OP_MRMOVBR: {
+			// Load one byte from memory into R[ra]
+			// Address is stored in register R[rb]
+			
+			uint8_t ra = in.ra;
+			uint8_t rb = in.b2;
+			check_reg(ra);
+			check_reg(rb);
+			
+			uint16_t addr = cpu->r[rb];		// address comes from register
+			cpu->r[ra] = read8(addr);		// read 1 byte (RAM or I/O)
+			
+			cpu->pc = cpu->pc + 4;	
+			break;
+		}
+		
+		case OP_RMMOVBR: {
+			// Store the LOW 8 bits of R[ra] into memory
+			// Address is stored in register R[rb]
+			
+			uint8_t ra = in.ra;
+			uint8_t rb = in.b2;
+			check_reg(ra);
+			check_reg(rb);
+			
+			uint16_t addr = cpu->r[rb];				// address comes from register
+			write8(addr, (uint8_t)cpu->r[ra]);		// write only lowest byte
+	
+			cpu->pc = cpu->pc + 4;	
+			break;
+		}
+		
+		case OP_MRMOVW: {
+			// Load a 16-bit word from memory into R[ra]
+			// Address is a 16-bit immediate (b2,b3)
+			// Uses little-endian format
+			
+			uint8_t ra = in.ra;
+			check_reg(ra);
+			
+			uint16_t addr = u16_from_le(in.b2, in.b3);
+			cpu->r[ra] = mem_read16(addr);	// read 2 bytes (little-endian)
+			
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_RMMOVW: {
+			// Store a 16-bit word from R[ra] into memory
+			// Address is a 16-bit immediate (b2,b3)
+			// Written in little-endian format
+			
+			uint8_t ra = in.ra;
+			check_reg(ra);
+			
+			uint16_t addr = u16_from_le(in.b2, in.b3);
+			mem_write16(addr, cpu->r[ra]);	// write 2 bytes (little-endian)
+			
+			cpu->pc = cpu->pc + 4;
 			break;
 		}
 	}
