@@ -150,6 +150,9 @@ In Labs 2–4 you implement them inside cpu_step using switch-case.
 /* ALU */
 #define OP_ADDW    0x10
 #define OP_SUBW    0x11
+#define OP_INC     0x12
+#define OP_DEC     0x13
+#define OP_CLR     0x14
 #define OP_CMPW    0x15  /* sets ZF */
 
 /* Control flow */
@@ -163,6 +166,10 @@ In Labs 2–4 you implement them inside cpu_step using switch-case.
 #define OP_POPW    0x31
 #define OP_CALL    0x32
 #define OP_RET     0x33
+
+#define OP_OUTDEC 0x42
+
+static unsigned long instruction_count;
 
 /* =========================
    Memory (Lab 1)
@@ -452,6 +459,8 @@ static void cpu_step(cpu_t *cpu, int debug) {
 
     io_tick();
     instr_t in = fetch(cpu);
+	
+	instruction_count++;
 
     /* In debug mode, print a simple trace */
     if (debug) {
@@ -475,6 +484,8 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			uint16_t imm16 = u16_from_le(in.b2, in.b3);	// read 16-bit immediate (little-endian)
 			cpu->r[in.ra] = imm16;
 			
+			cpu->zf = (cpu->r[ra] == 0);	// Set zero flag if result is 0
+			
 			cpu->pc = cpu->pc + 4;	// advance to next instruction
 			break;
 		}
@@ -489,6 +500,8 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			
 			cpu->r[rb] = cpu->r[ra];
 			
+			cpu->zf = (cpu->r[rb] == 0);
+			
 			cpu->pc = cpu->pc + 4;
 			break;
 		}
@@ -501,6 +514,8 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			uint8_t imm8 = in.b3;	// imm8 is stored in b3
 			
 			cpu->r[in.ra] = imm8;
+			
+			cpu->zf = (cpu->r[ra] == 0);
 			
 			cpu->pc = cpu->pc + 4;
 			break;
@@ -516,6 +531,8 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			
 			cpu->r[rb] = cpu->r[rb] + cpu->r[ra];
 			
+			cpu->zf = (cpu->r[rb] == 0);
+			
 			cpu->pc = cpu->pc + 4;
 			break;
 		}
@@ -530,6 +547,8 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			
 			cpu->r[rb] = cpu->r[rb] - cpu->r[ra];
 			
+			cpu->zf = (cpu->r[rb] == 0);
+			
 			cpu->pc = cpu->pc + 4;
 			break;
 		}
@@ -542,10 +561,7 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			check_reg(ra);
 			check_reg(rb);
 			
-			if(cpu->r[ra] == cpu->r[rb])
-				cpu->zf = 1;
-		    else
-				cpu->zf = 0;
+			cpu->zf = (cpu->r[ra] == cpu->r[rb]);
 			
 			cpu->pc = cpu->pc + 4;
 			break;
@@ -588,6 +604,7 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			// HALT stops the CPU
 			
 			cpu->halted = 1;
+			printf("Instruction count: %lu\n", instruction_count);
 			break;
 		}
 		
@@ -611,7 +628,7 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			check_reg(ra);
 			
 			cpu->r[ra] = mem_read16(cpu->sp);		// read 16-bit value from memory at SP
-			cpu->sp = cpu->sp + 2;				// increment SP
+			cpu->sp = cpu->sp + 2;				   // increment SP
 			
 			cpu->pc = cpu->pc + 4;
 			break;
@@ -632,7 +649,7 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			// RET: pop return address from stack and jump there
 			
 			cpu->pc = mem_read16(cpu->sp);			// load return address
-			cpu->sp = cpu->sp + 2;				// increment SP
+			cpu->sp = cpu->sp + 2;				   // increment SP
 			break;
 		}
 		
@@ -645,6 +662,8 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			
 			uint16_t addr = u16_from_le(in.b2, in.b3);	// compute 16-bit address
 			cpu->r[ra] = read8(addr);					// read 1 byte (RAM or I/O)
+			
+			cpu->zf = (cpu->r[ra] == 0);
 			
 			cpu->pc = cpu->pc + 4;
 			break;
@@ -675,6 +694,8 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			
 			uint16_t addr = cpu->r[rb];		// address comes from register
 			cpu->r[ra] = read8(addr);		// read 1 byte (RAM or I/O)
+			
+			cpu->zf = (cpu->r[ra] == 0);
 			
 			cpu->pc = cpu->pc + 4;	
 			break;
@@ -707,6 +728,8 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			uint16_t addr = u16_from_le(in.b2, in.b3);
 			cpu->r[ra] = mem_read16(addr);	// read 2 bytes (little-endian)
 			
+			cpu->zf = (cpu->r[ra] == 0);
+			
 			cpu->pc = cpu->pc + 4;
 			break;
 		}
@@ -723,6 +746,61 @@ static void cpu_step(cpu_t *cpu, int debug) {
 			mem_write16(addr, cpu->r[ra]);	// write 2 bytes (little-endian)
 			
 			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_INC: {
+			// Increment the value in R[ra] by 1
+			
+			uint8_t ra = in.ra;
+			check_reg(ra);
+			
+			cpu->r[ra]++;
+			
+			cpu->zf = (cpu->r[ra] == 0);	// Set zero flag if result is 0
+			
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_DEC: {
+			// Decrement the value in R[ra] by 1
+			
+			uint8_t ra = in.ra;
+			check_reg(ra);
+			
+			cpu->r[ra]--;
+			
+			cpu->zf = (cpu->r[ra] == 0);	// Set zero flag if result is 0
+			
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_CLR: {
+			// Clear the register (set to 0)
+			
+			uint8_t ra = in.ra;
+			check_reg(ra);
+			
+			cpu->r[ra] = 0;
+			
+			cpu->zf = (cpu->r[ra] == 0);	// Zero flag is always set after clearing
+						
+			cpu->pc = cpu->pc + 4;
+			break;
+		}
+		
+		case OP_OUTDEC: {
+			// Output the value of R[ra] as decimal
+			
+			uint8_t ra = in.ra;
+			check_reg(ra); 
+			
+			printf("%u\n", cpu->r[ra]);     
+			fflush(stdout); 			// Ensure it appears immediately
+			
+			cpu->pc = cpu->pc + 4;                 
 			break;
 		}
 	}
