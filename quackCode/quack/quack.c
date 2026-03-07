@@ -479,10 +479,11 @@ static void cpu_step(cpu_t *cpu, int debug) {
 		case OP_IRMOVW: {
 			// R[ra] = imm16
 			
-			check_reg(in.ra);	// validate register index 0..3
+			uint8_t ra = in.ra;
+			check_reg(ra);	// validate register index 0..3
 			
 			uint16_t imm16 = u16_from_le(in.b2, in.b3);	// read 16-bit immediate (little-endian)
-			cpu->r[in.ra] = imm16;
+			cpu->r[ra] = imm16;
 			
 			cpu->zf = (cpu->r[ra] == 0);	// Set zero flag if result is 0
 			
@@ -509,11 +510,12 @@ static void cpu_step(cpu_t *cpu, int debug) {
 		case OP_IRMOVB: {
 			// R[ra] = imm8  (8-bit immediate)
 			
-			check_reg(in.ra);
+			uint8_t ra = in.ra;
+			check_reg(ra);
 			
 			uint8_t imm8 = in.b3;	// imm8 is stored in b3
 			
-			cpu->r[in.ra] = imm8;
+			cpu->r[ra] = imm8;
 			
 			cpu->zf = (cpu->r[ra] == 0);
 			
