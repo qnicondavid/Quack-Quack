@@ -1,21 +1,18 @@
-# QuackQuack - Build a Tiny Computer in C
-
-Welcome! This repository contains the **QuackQuack** project: you will build a tiny computer in C and run a maze game inside it.
-
-You have not learned C yet - that is expected. The labs will teach you C step-by-step.
-
----
+# Quack-Quack - A Tiny Computer in C
 
 ## What is in this project?
 
 - `quack.c`  
-  **The only file you edit.** Contains the whole simulator (memory + CPU + I/O).
+
+  Contains the whole simulator (memory + CPU + I/O).
 
 - `programs/`  
+
   Pre-compiled “machine code” programs (`*.duck`) that run on your Quack computer:
-  - `sum10.duck`
-  - `call_add.duck`
-  - `maze.duck`
+  
+- `Report`
+
+  Techinical explanations about this project 
 
 ---
 
@@ -235,6 +232,3 @@ chmod +x quack
 
 (Usually not needed, but sometimes happens if files moved oddly.)
 
-## It compiles, but maze does not move
-In Lab 4 you will implement the I/O reads/writes and byte load/store instructions.
-Until then, maze will not be interactive.
