@@ -1,5 +1,5 @@
 # Quack-Quack - A Tiny Computer in C
-
+Project for the Computer Architecture course at Maastricht University (Ashish Sai, Guangzhi Tang).
 ## What is in this project?
 
 - `quack.c`  
